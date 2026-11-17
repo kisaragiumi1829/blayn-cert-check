@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>証明書ファイルの照合</title>
+<style>
+*{box-sizing:border-box}body{font:16px/1.65 sans-serif;color:#18272a;background:#f5f8f7;margin:0}main{max-width:38rem;margin:auto;padding:2rem 1rem}h1{font-size:1.55rem;border-bottom:3px solid #216b5c;padding-bottom:.65rem}label{display:block;font-weight:bold;margin-top:1.5rem}input,textarea{display:block;width:100%;margin-top:.4rem;padding:.7rem;background:white;border:1px solid #889997;border-radius:4px}output{display:block;min-height:2rem;word-break:break-all;font-family:monospace;background:white;padding:.7rem}#result{font-weight:bold}small{color:#465c59}
+</style>
+<main>
+<h1>証明書ファイルの照合</h1>
+<p>ファイルはこの端末内で確認します。アップロードや証明書の登録は行いません。</p>
+<label for="file">1. 保存した証明書を選択</label><input type="file" id="file">
+<p>選んだファイルの SHA256</p><output id="hash">未選択</output>
+<label for="expected">2. サーバーの SHA256（64桁）</label>
+<small>sha256sum で表示した値を入力してください。OpenSSL の証明書指紋とは異なります。</small>
+<textarea id="expected" rows="3" autocapitalize="none" spellcheck="false"></textarea>
+<p id="result" role="status" aria-live="polite"></p>
+</main>
+<script>
+(function(){
+  var file=document.getElementById('file'), hash=document.getElementById('hash'), expected=document.getElementById('expected'), result=document.getElementById('result'), actual='', counter=0;
+  function compare(){
+    var value=expected.value.replace(/\s/g,'').toLowerCase();
+    result.textContent=!actual?'':!value?'サーバーの値との照合はまだです。':!/^[0-9a-f]{64}$/.test(value)?'半角の16進数64桁を確認してください。':actual===value?'一致しました。サーバーの原本と同じファイルです。':'不一致です。登録しないでください。';
+  }
+  function changed(){
+    var n=++counter, f=file.files[0]; actual='';compare();
+    if(!f){hash.textContent='未選択';return;}
+    if(!f.size || f.size>1048576){hash.textContent='空のファイル、または1 MBを超えるファイルは確認できません。';return;}
+    if(!window.crypto || !window.crypto.subtle || !window.FileReader){hash.textContent='このブラウザーでは照合できません。証明書は登録しないでください。';return;}
+    hash.textContent='計算中…';
+    function fail(){if(n===counter)hash.textContent='読み取り・計算に失敗しました。登録しないでください。';}
+    var reader=new FileReader(); reader.onerror=fail; reader.onload=function(){
+      try{window.crypto.subtle.digest('SHA-256',reader.result).then(function(buffer){
+        if(n!==counter)return;
+        var bytes=new Uint8Array(buffer), s='';for(var i=0;i<bytes.length;i++)s+=('0'+bytes[i].toString(16)).slice(-2);
+        actual=s;hash.textContent=s;compare();
+      },fail);}catch(e){fail();}
+    };reader.readAsArrayBuffer(f);
+  }
+  file.onchange=changed;expected.oninput=compare;
+})();
+</script>
+</html>
